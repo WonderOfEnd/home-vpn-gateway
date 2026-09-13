@@ -1,0 +1,179 @@
+{
+  "log": {
+    "loglevel": "info",
+    "access": "/var/log/xray/access.log"
+  },
+  "inbounds": [
+    {
+      "tag": "socks-in",
+      "listen": "127.0.0.1",
+      "port": 10808,
+      "protocol": "socks",
+      "settings": {
+        "udp": true
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"]
+      }
+    },
+    {
+      "tag": "redirect-in",
+      "listen": "0.0.0.0",
+      "port": 12345,
+      "protocol": "dokodemo-door",
+      "settings": {
+        "network": "tcp",
+        "followRedirect": true
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "routeOnly": false
+      }
+    },
+    {
+      "tag": "tproxy-udp-in",
+      "listen": "0.0.0.0",
+      "port": 12346,
+      "protocol": "dokodemo-door",
+      "settings": {
+        "network": "udp",
+        "followRedirect": true
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "routeOnly": false
+      },
+      "streamSettings": {
+        "sockopt": {
+          "tproxy": "tproxy"
+        }
+      }
+    },
+    {
+      "tag": "dns-in",
+      "listen": "127.0.0.1",
+      "port": 5353,
+      "protocol": "dokodemo-door",
+      "settings": {
+        "address": "8.8.8.8",
+        "port": 53,
+        "network": "udp"
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "proxy",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "<VPS_IP>",
+            "port": 443,
+            "users": [
+              {
+                "id": "<CLIENT_UUID>",
+                "encryption": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "serverName": "<REALITY_SERVER_NAME>",
+          "fingerprint": "chrome",
+          "publicKey": "<REALITY_PUBLIC_KEY>",
+          "shortId": "<REALITY_SHORT_ID>",
+          "spiderX": "/"
+        }
+      },
+      "mux": {
+        "enabled": true,
+        "concurrency": 256,
+        "xudpConcurrency": 128,
+        "xudpProxyUDP443": "allow"
+      }
+    },
+    {
+      "tag": "proxy-voice",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "<VPS_IP>",
+            "port": 443,
+            "users": [
+              {
+                "id": "<CLIENT_UUID>",
+                "encryption": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "serverName": "<REALITY_SERVER_NAME>",
+          "fingerprint": "chrome",
+          "publicKey": "<REALITY_PUBLIC_KEY>",
+          "shortId": "<REALITY_SHORT_ID>",
+          "spiderX": "/"
+        }
+      }
+    },
+    {
+      "tag": "direct",
+      "protocol": "freedom"
+    },
+    {
+      "tag": "block",
+      "protocol": "blackhole"
+    }
+  ],
+  "routing": {
+    "domainStrategy": "IPIfNonMatch",
+    "rules": [
+      {
+        "type": "field",
+        "ip": ["geoip:private"],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "ip": ["geoip:ru"],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "geosite:category-ru",
+          "geosite:yandex",
+          "geosite:vk",
+          "geosite:mailru",
+          "regexp:.*\\.ru$",
+          "regexp:.*\\.su$",
+          "regexp:.*\\.рф$"
+        ],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "inboundTag": ["dns-in"],
+        "outboundTag": "proxy"
+      },
+      {
+        "type": "field",
+        "inboundTag": ["redirect-in", "socks-in", "tproxy-udp-in"],
+        "outboundTag": "proxy"
+      }
+    ]
+  }
+}
