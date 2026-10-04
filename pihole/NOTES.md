@@ -33,3 +33,9 @@ docker run -d --name pihole \
 ```
 
 (`FTLCONF_webserver_api_password` задаётся отдельно — здесь не хранится.)
+
+## Блоклисты
+
+Помимо StevenBlack, подключены: hagezi `adblock/pro.txt` и RU AdList
+(`ElkyBoy/ruadlist-pihole`). Список hagezi `hosts/` и `domains/` устарел, использовать
+только `adblock/`. Перестроить: `docker exec pihole pihole -g`.

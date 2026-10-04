@@ -14,7 +14,11 @@
       },
       "sniffing": {
         "enabled": true,
-        "destOverride": ["http", "tls", "quic"]
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ]
       }
     },
     {
@@ -28,28 +32,12 @@
       },
       "sniffing": {
         "enabled": true,
-        "destOverride": ["http", "tls", "quic"],
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
         "routeOnly": false
-      }
-    },
-    {
-      "tag": "tproxy-udp-in",
-      "listen": "0.0.0.0",
-      "port": 12346,
-      "protocol": "dokodemo-door",
-      "settings": {
-        "network": "udp",
-        "followRedirect": true
-      },
-      "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls", "quic"],
-        "routeOnly": false
-      },
-      "streamSettings": {
-        "sockopt": {
-          "tproxy": "tproxy"
-        }
       }
     },
     {
@@ -101,35 +89,6 @@
       }
     },
     {
-      "tag": "proxy-voice",
-      "protocol": "vless",
-      "settings": {
-        "vnext": [
-          {
-            "address": "<VPS_IP>",
-            "port": 443,
-            "users": [
-              {
-                "id": "<CLIENT_UUID>",
-                "encryption": "none"
-              }
-            ]
-          }
-        ]
-      },
-      "streamSettings": {
-        "network": "tcp",
-        "security": "reality",
-        "realitySettings": {
-          "serverName": "<REALITY_SERVER_NAME>",
-          "fingerprint": "chrome",
-          "publicKey": "<REALITY_PUBLIC_KEY>",
-          "shortId": "<REALITY_SHORT_ID>",
-          "spiderX": "/"
-        }
-      }
-    },
-    {
       "tag": "direct",
       "protocol": "freedom"
     },
@@ -143,12 +102,16 @@
     "rules": [
       {
         "type": "field",
-        "ip": ["geoip:private"],
+        "ip": [
+          "geoip:private"
+        ],
         "outboundTag": "direct"
       },
       {
         "type": "field",
-        "ip": ["geoip:ru"],
+        "ip": [
+          "geoip:ru"
+        ],
         "outboundTag": "direct"
       },
       {
@@ -166,12 +129,17 @@
       },
       {
         "type": "field",
-        "inboundTag": ["dns-in"],
+        "inboundTag": [
+          "dns-in"
+        ],
         "outboundTag": "proxy"
       },
       {
         "type": "field",
-        "inboundTag": ["redirect-in", "socks-in", "tproxy-udp-in"],
+        "inboundTag": [
+          "redirect-in",
+          "socks-in"
+        ],
         "outboundTag": "proxy"
       }
     ]
