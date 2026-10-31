@@ -1,4 +1,4 @@
-# Local credentials and state
+# Local server credentials and runtime state
 .env
 **/.env
 *.local
@@ -8,15 +8,6 @@
 *.key
 *.pem
 *.log
+__pycache__/
 **/etc-pihole/
 **/etc-dnsmasq.d/
-# Minecraft binaries and worlds
-*.jar
-*.class
-**/saves/
-**/shaderpacks/
-# User session snapshots and build output
-**/saved.json
-**/snaps/
-**/history/
-.build/

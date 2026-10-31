@@ -1,6 +1,0 @@
-<GATEWAY_IP>:9000 {
-    tls internal
-    root * <SITE_CONTENT_DIR>
-    encode gzip
-    file_server
-}
