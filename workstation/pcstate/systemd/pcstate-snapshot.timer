@@ -1,0 +1,12 @@
+[Unit]
+Description=pcstate: снимок каждые 15 с
+After=pcstate-session.service
+Requires=pcstate-session.service
+PartOf=graphical-session.target
+
+[Timer]
+OnActiveSec=15s
+OnUnitActiveSec=15s
+
+[Install]
+WantedBy=graphical-session.target

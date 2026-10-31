@@ -1,0 +1,22 @@
+# Local credentials and state
+.env
+**/.env
+*.local
+*.private.*
+*.db
+*.sqlite*
+*.key
+*.pem
+*.log
+**/etc-pihole/
+**/etc-dnsmasq.d/
+# Minecraft binaries and worlds
+*.jar
+*.class
+**/saves/
+**/shaderpacks/
+# User session snapshots and build output
+**/saved.json
+**/snaps/
+**/history/
+.build/

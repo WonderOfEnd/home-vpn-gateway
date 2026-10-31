@@ -1,104 +1,107 @@
 # home-vpn-gateway
 
-Превращает домашний сервер в прозрачный шлюз для всей локальной сети: TCP-трафик
-идёт через туннель VLESS+REALITY на внешний сервер, кроме российских
-сайтов/сервисов — они идут напрямую. DNS резолвится через тот же туннель, чтобы
-провайдер не мог подменять ответы. Отдельный мини-веб-сервис позволяет добавлять
-и убирать сайты-исключения (идут напрямую) прямо с телефона или ПК.
+Домашний шлюз Debian с Xray VLESS+REALITY, Pi-hole и точечной маршрутизацией
+UDP. Сверено с работающим `home` 31 октября 2026 года. Сопутствующие настройки
+ПК находятся в `workstation/`, шаблоны служб VPS — в `vps/`.
+[История и результат сверки](docs/audit-2026-10-31.md).
 
-На роутере в DHCP прописывается шлюз и DNS — этот сервер, дальше всё происходит само.
-
-## Что нужно на стороне внешнего сервера (не входит в репозиторий)
-
-Рабочий инстанс [3x-ui](https://github.com/MHSanaei/3x-ui) с VLESS-инбаундом:
-`network: tcp`, `security: reality`, **без** `flow` у клиента (Mux и
-`xtls-rprx-vision` несовместимы — см. ниже), **без** `mldsa65Seed`.
-Создайте отдельного клиента под этот шлюз (не переиспользуйте UUID телефона/приложения).
-Нужны: IP сервера, UUID клиента, публичный ключ REALITY, short ID, server name (SNI).
+Репозиторий публичный: адрес VPS, UUID, ключ REALITY, MTProto secret, MAC ПК
+и пользовательские пути заменены параметрами. Рабочие базы клиентов, пароли,
+игровые миры, архивы модов и снимки сеанса сюда не входят.
 
 ## Структура
 
-```
-xray/config.json                      конфиг xray-клиента (логика шлюза)
-systemd/xray.service                  запуск xray от `nobody` с CAP_NET_ADMIN
-systemd/xray-exceptions-web.service   веб-интерфейс исключений
-iptables/rules.txt                    актуальный набор правил (iptables-restore)
-pihole/NOTES.md                       единственная настройка Pi-hole, которая важна
-exceptions/apply-xray-exceptions.py   root-скрипт: переписывает правило исключений и перезапускает xray
-exceptions/xray-exceptions-web.py     веб-интерфейс (LAN, HTTP Basic Auth)
-```
+| Путь | Назначение |
+| --- | --- |
+| `xray/config.json` | Обезличенный актуальный конфиг клиента Xray |
+| `iptables/rules.txt` | Снимок IPv4-правил в формате iptables-restore |
+| `systemd/`, `scripts/` | Xray, policy routing, исключения и правило Discord |
+| `discord/` | Пример параметров MAC и LAN-интерфейса |
+| `exceptions/` | Существующий LAN-интерфейс исключений сайтов |
+| `pihole/`, `sysctl/` | Настройки DNS, Compose template и IPv4 forwarding |
+| `caddy/` | Шаблон существующего локального HTTPS-сайта |
+| `workstation/` | pcstate, Prism и исходники ремонта Prominence |
+| `vps/` | Шаблоны x-ui и MTProto без клиентских секретов |
 
-## Установка
+## Маршрутизация
 
-1. Установить xray-core (`bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)"`).
-2. Скопировать `xray/config.json` в `/usr/local/etc/xray/config.json`, заполнить
-   `<VPS_IP>`, `<CLIENT_UUID>`, `<REALITY_SERVER_NAME>`, `<REALITY_PUBLIC_KEY>`,
-   `<REALITY_SHORT_ID>` из панели.
-3. Скопировать `systemd/xray.service` в `/etc/systemd/system/`, `systemctl daemon-reload`,
-   `systemctl enable --now xray`.
-4. Применить `iptables/rules.txt` (заполнить `<VPS_IP>`) и сохранить на диск
-   (`netfilter-persistent save`), чтобы правила пережили перезагрузку.
-5. Настроить upstream Pi-hole на `127.0.0.1#5353` (см. `pihole/NOTES.md`).
-6. Включить IP forwarding (`net.ipv4.ip_forward=1`).
-7. Прописать на роутере DHCP-шлюз и DNS — LAN-адрес этого сервера.
-8. (Опционально) Исключения: положить `exceptions/apply-xray-exceptions.py` в
-   `/usr/local/bin/` (root), `exceptions/xray-exceptions-web.py` в `/usr/local/bin/`,
-   создать `/etc/xray-exceptions.json` с `[]`, пароль в `/etc/xray-exceptions.password`,
-   разрешить пользователю запускать ровно один скрипт через sudo
-   (`/etc/sudoers.d/`: `<user> ALL=(root) NOPASSWD: /usr/local/bin/apply-xray-exceptions.py`),
-   затем включить `xray-exceptions-web.service`.
+- На роутере DHCP-шлюз и DNS указывают на домашний сервер.
+- DNS из LAN перенаправляется в Pi-hole. Единственный upstream —
+  `127.0.0.1#5353`: Xray передаёт запросы через туннель.
+- TCP из LAN поступает в `redirect-in` на порту 12345. Приватные адреса,
+  российские назначения и пользовательские исключения идут напрямую;
+  остальные соединения — через `proxy`.
+- Обычный UDP остаётся прямым. Для четырёх адресов TruckersMP сохранён
+  перехват через `XRAY_UDP`.
+- Голос и трансляции нативного Discord выбранного ПК распознаются отдельным
+  правилом и передаются в UDP-inbound Xray на порту 12346.
+- Существующее правило FORWARD блокирует UDP 443 из LAN. Соединения приложений,
+  способных повторить запрос по TCP, затем проходят обычный TCP-маршрут.
 
-## Как маршрутизируется трафик
+## Восстановление шлюза
 
-- **DNS** (любой запрос на :53 из LAN) → редирект на Pi-hole → Pi-hole форвардит
-  только на `127.0.0.1:5353` (xray) → туннель → резолв на внешнем сервере.
-- **TCP** из LAN → `REDIRECT` на `redirect-in` (12345) → по IP/домену:
-  - приватные диапазоны и собственный IP внешнего сервера → `direct`
-  - сайты-исключения (из веб-интерфейса) → `direct`
-  - российские IP / `geosite:category-ru` / яндекс / vk / mailru / `.ru` / `.su` / `.рф` → `direct`
-  - всё остальное → `proxy` (туннель, с мультиплексированием)
-- **UDP** из LAN не туннелируется. Исключение — UDP 443 (QUIC): он режется на
-  `FORWARD`, и браузер мгновенно откатывается на TCP, который идёт через туннель.
+1. Установить Xray с geodata, Docker, sudo, iptables-persistent и Pi-hole.
+2. В копии `xray/config.json` заполнить `<VPS_IP>`, `<CLIENT_UUID>`,
+   `<REALITY_SERVER_NAME>`, `<REALITY_PUBLIC_KEY>`, `<REALITY_SHORT_ID>` из своей
+   панели x-ui. Используется отдельный VLESS/REALITY клиент на TCP 443 без flow.
+   Проверить подготовленный конфиг через `xray run -test`.
+3. Установить `systemd/xray.service`, его drop-in и две службы
+   `xray-tproxy-*.service` в соответствующие пути `/etc/systemd/system/`.
+4. Установить `scripts/xray-tproxy-rules.sh` в `/usr/local/bin/` с режимом 755.
+   Этот скрипт восстанавливает fwmark 1 / table 100, предварительно убирая
+   старое правило и содержимое данной таблицы.
+5. В копии `iptables/rules.txt` заполнить `<VPS_IP>` и проверить имя LAN-интерфейса
+   (`enp2s0` в снимке). Это полный снимок таблиц, включая существовавшие Docker
+   chains и повторяющиеся live rules. Перед применением сохранить текущие правила.
+6. Применить подготовленный файл через iptables-restore и сохранить средствами
+   netfilter-persistent. Не загружать параллельно конкурирующий набор nftables.
+7. Установить `sysctl/90-home-vpn-gateway.conf` в `/etc/sysctl.d/`, применить sysctl.
+8. Выполнить daemon-reload, включить Xray и две службы policy routing.
+9. Восстановить Pi-hole по [его настройкам](pihole/NOTES.md), затем DHCP шлюза/DNS.
 
-## Почему UDP не туннелируется
+Основной outbound `proxy` использует Mux: `concurrency: 256`,
+`xudpConcurrency: 128`, `xudpProxyUDP443: allow`. Дополнительный `proxy-voice`
+сохранён из live config, но текущие routing rules его не выбирают.
 
-Изначально UDP-туннель через TPROXY рассматривался, но в эту конфигурацию не входит.
-Real-time UDP (WebRTC: голос в Discord, видеозвонки) плохо переживает
-мультиплексирование через TCP-туннель: ICE-проверки ломаются из-за несогласованных
-исходящих портов, клиент зависает в "маршрут не установлен → переподключение".
-Голос Discord при этом прекрасно работает через TCP-фолбэк, который идёт через туннель.
+## Голос Discord
 
-Отдельный побочный эффект: QUIC (UDP 443) с LAN, уходя напрямую, раскрывает реальный
-IP. Поэтому UDP 443 блокируется на шлюзе — тогда любой браузер или приложение
-автоматически работает по TCP через туннель (именно так, например, Claude
-перестаёт видеть российский IP).
+31 октября прямой UDP к назначенному голосовому серверу не отвечал, хотя
+управляющее WebSocket-соединение работало. Через Xray получен корректный ответ
+за 72–73 мс. Подтверждены RTC_CONNECTED голоса и трансляции; владелец подтвердил звук.
 
-## Почему Mux, и почему не `xtls-rprx-vision`
+Правило использует [формат IP Discovery нативного Discord](https://docs.discord.com/developers/topics/voice-connections#ip-discovery):
+UDP payload 74 байта, type 1, length 70. Для исходящих пакетов выбранного MAC
+ставится conntrack mark `0x40000000`. Весь такой поток направляется TPROXY на
+`127.0.0.1:12346`. IP голосовых серверов не фиксируются. Область работы — IPv4
+и нативный клиент; браузерный WebRTC использует другой handshake.
 
-Без Mux каждое проксируемое соединение открывает новый REALITY-хендшейк. Под нагрузкой
-с нескольких устройств это доходило до 250+ одновременных хендшейков и начинало падать.
-Mux (`concurrency: 256`) схлопывает их в небольшое число TCP-соединений.
+Восстановление правила:
 
-`xtls-rprx-vision` и Mux взаимно несовместимы (ошибки `common/mux: unexpected network TCP`).
-Раз Mux здесь нужен, `flow` у клиента шлюза не задан. Телефон, который не идёт через шлюз
-и не нуждается в Mux, может безопасно использовать vision.
+1. Установить `scripts/discord-voice-route.sh` в `/usr/local/bin/` с режимом 755.
+2. Скопировать `discord/discord-voice-route.env.example` в
+   `/etc/default/discord-voice-route`, задать реальные PC_MAC и LAN_IFACE.
+3. В `systemd/discord-voice-route.service` заполнить USER и GROUP placeholders.
+   На проверенном home у выбранного пользователя уже разрешён NOPASSWD-запуск
+   `/usr/sbin/iptables`. Шаблон службы сам таких разрешений не создаёт.
+4. Установить службу, выполнить daemon-reload и
+   `systemctl enable --now discord-voice-route.service`.
 
-## Исключения сайтов
+Служба запускается после Xray, policy routing и netfilter-persistent;
+перезапуск netfilter-persistent переустанавливает правило. Discord chain
+исключена из статического rules.txt, поскольку ею управляет служба.
 
-Открыть `http://<адрес шлюза>:8090/` (логин `<USER>` (любой заданный) + пароль из
-`/etc/xray-exceptions.password`), ввести домен — он уходит в `direct`
-(с префиксом `domain:`, то есть вместе с поддоменами). "Убрать" возвращает обратно.
-Скрипт пересобирает правило в конфиге xray и перезапускает сервис; предыдущая версия
-конфига сохраняется рядом с датой в имени.
+Проверка: `systemctl status discord-voice-route` и
+`iptables -t mangle -L DISCORD_VOICE -n -v`. Откат: остановить и отключить
+discord-voice-route.service; ExecStop удаляет только её собственную цепочку и hook.
 
-## Важно: не добавлять публичный DNS в upstream
+## Исключения и журналы
 
-В Pi-hole должен быть **только** `127.0.0.1#5353`. Добавление публичного резолвера
-(например, `1.1.1.1`) напрямую обходит туннель, и провайдер может подменять его
-ответы для части доменов — наблюдаемый признак: пустой ответ с флагом `aa`, и сайт
-"не открывается, нет интернета".
+LAN UI исключений работает на порту 8090 с HTTP Basic Auth. Домены хранятся
+в `/etc/xray-exceptions.json`, пароль — в отдельном локальном файле. Для новой
+установки список начинается с `[]`; личные исключения в шаблон не копировались.
 
-## Рабочий базовый вариант
+С 27 октября у Xray `access: none`, `loglevel: warning`: журнал соединений
+отключён, ошибки продолжают сохраняться в `/var/log/xray/error.log`.
+Логирование Pi-hole этой правкой не менялось.
 
-Эта конфигурация — проверенный TCP-only вариант: голос Discord, YouTube, Telegram и
-RU-сайты работают одновременно на ПК, ноутбуке, телефонах и ТВ.
+Во время сверки рабочие службы, контейнеры и виртуальные машины не перезапускались.

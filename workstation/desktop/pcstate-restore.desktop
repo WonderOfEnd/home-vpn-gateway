@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Вернуть состояние
+Comment=Запустить приложения, окна Konsole и ВМ, как до выключения
+Exec=pcstate restore
+Icon=system-reboot
+Categories=System;

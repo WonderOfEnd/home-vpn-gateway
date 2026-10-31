@@ -1,0 +1,21 @@
+{
+  "services": {
+    "pihole": {
+      "image": "pihole/pihole:latest",
+      "container_name": "pihole",
+      "network_mode": "host",
+      "environment": {
+        "FTLCONF_dns_listeningMode": "ALL",
+        "TZ": "Europe/Moscow",
+        "FTLCONF_webserver_api_password": "${PIHOLE_PASSWORD:?Set PIHOLE_PASSWORD}"
+      },
+      "restart": "unless-stopped",
+      "volumes": [
+        "./etc-pihole:/etc/pihole"
+      ],
+      "cap_add": [
+        "NET_ADMIN"
+      ]
+    }
+  }
+}

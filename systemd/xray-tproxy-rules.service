@@ -1,0 +1,12 @@
+[Unit]
+Description=Xray TProxy routing rules
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/xray-tproxy-rules.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

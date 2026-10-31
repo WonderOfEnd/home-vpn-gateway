@@ -1,0 +1,15 @@
+[Unit]
+Description=MTProto proxy for Telegram (mtg)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/mtg simple-run 0.0.0.0:8443 <MTG_SECRET>
+Restart=on-failure
+RestartSec=3
+User=nobody
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,24 +1,15 @@
-# Актуальный набор правил (получен через `iptables -t <table> -S`),
-# совместим с iptables-restore.
-# Перед применением заменить <VPS_IP>. Автоматически созданные цепочки/правила
-# Docker (DOCKER, DOCKER-USER, DOCKER-ISOLATION-*, MASQUERADE для 172.17.0.0/16)
-# оставлены как есть, так как сосуществуют на этой машине.
-#
-# Применение, например:
-#   sudo iptables-restore --noflush < rules.txt
-#
-# QUIC (UDP 443) с LAN наружу режется, чтобы браузеры мгновенно откатывались на TCP
-# (который идёт через туннель). Иначе QUIC уходит напрямую с реальным IP, и сайты
-# с гео-проверкой (например, Claude) блокируют.
+# Snapshot of live IPv4 rules, 2026-10-31. Replace <VPS_IP> before use.
+# Discord rules are installed separately by discord-voice-route.service.
+# Existing Docker chains and duplicate live rules are retained.
 
-# --- filter ---
--P INPUT ACCEPT
--P FORWARD ACCEPT
--P OUTPUT ACCEPT
--N DOCKER
--N DOCKER-ISOLATION-STAGE-1
--N DOCKER-ISOLATION-STAGE-2
--N DOCKER-USER
+*filter
+:INPUT ACCEPT [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+:DOCKER - [0:0]
+:DOCKER-ISOLATION-STAGE-1 - [0:0]
+:DOCKER-ISOLATION-STAGE-2 - [0:0]
+:DOCKER-USER - [0:0]
 -A FORWARD -i enp2s0 -o enp2s0 -p udp -m udp --dport 443 -j REJECT --reject-with icmp-port-unreachable
 -A FORWARD -j DOCKER-USER
 -A FORWARD -j DOCKER-ISOLATION-STAGE-1
@@ -37,14 +28,15 @@
 -A DOCKER-ISOLATION-STAGE-2 -o docker0 -j DROP
 -A DOCKER-ISOLATION-STAGE-2 -j RETURN
 -A DOCKER-USER -j RETURN
+COMMIT
 
-# --- nat ---
--P PREROUTING ACCEPT
--P INPUT ACCEPT
--P OUTPUT ACCEPT
--P POSTROUTING ACCEPT
--N DOCKER
--N XRAY
+*nat
+:PREROUTING ACCEPT [0:0]
+:INPUT ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+:DOCKER - [0:0]
+:XRAY - [0:0]
 -A PREROUTING -i enp2s0 -p udp -m udp --dport 53 -j REDIRECT --to-ports 53
 -A PREROUTING -i enp2s0 -p tcp -m tcp --dport 53 -j REDIRECT --to-ports 53
 -A PREROUTING -i enp2s0 -p tcp -j XRAY
@@ -65,3 +57,29 @@
 -A XRAY -d 240.0.0.0/4 -j RETURN
 -A XRAY -d <VPS_IP>/32 -j RETURN
 -A XRAY -p tcp -j REDIRECT --to-ports 12345
+COMMIT
+
+*mangle
+:PREROUTING ACCEPT [0:0]
+:INPUT ACCEPT [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+:XRAY_UDP - [0:0]
+-A PREROUTING -d 51.254.107.154/32 -i enp2s0 -p udp -m comment --comment "TruckersMP UDP via tunnel" -j XRAY_UDP
+-A PREROUTING -d 51.210.222.226/32 -i enp2s0 -p udp -m comment --comment "TruckersMP UDP via tunnel" -j XRAY_UDP
+-A PREROUTING -d 158.69.120.230/32 -i enp2s0 -p udp -m comment --comment "TruckersMP UDP via tunnel" -j XRAY_UDP
+-A PREROUTING -d 139.99.90.70/32 -i enp2s0 -p udp -m comment --comment "TruckersMP UDP via tunnel" -j XRAY_UDP
+-A XRAY_UDP -d 0.0.0.0/8 -j RETURN
+-A XRAY_UDP -d 10.0.0.0/8 -j RETURN
+-A XRAY_UDP -d 127.0.0.0/8 -j RETURN
+-A XRAY_UDP -d 169.254.0.0/16 -j RETURN
+-A XRAY_UDP -d 172.16.0.0/12 -j RETURN
+-A XRAY_UDP -d 192.168.0.0/16 -j RETURN
+-A XRAY_UDP -d 224.0.0.0/4 -j RETURN
+-A XRAY_UDP -d 240.0.0.0/4 -j RETURN
+-A XRAY_UDP -d <VPS_IP>/32 -j RETURN
+-A XRAY_UDP -p udp -m udp --dport 53 -j RETURN
+-A XRAY_UDP -p udp -m udp --dport 19300:19309 -j RETURN
+-A XRAY_UDP -p udp -j TPROXY --on-port 12346 --on-ip 127.0.0.1 --tproxy-mark 0x1/0x1
+COMMIT

@@ -1,0 +1,19 @@
+[Unit]
+Description=Route Discord native voice from the gaming PC through Xray
+Wants=network-online.target xray.service xray-tproxy-rules.service
+After=network-online.target netfilter-persistent.service xray.service xray-tproxy-rules.service
+PartOf=netfilter-persistent.service
+
+[Service]
+EnvironmentFile=/etc/default/discord-voice-route
+Type=oneshot
+User=<USER>
+Group=<GROUP>
+ExecStart=/usr/local/bin/discord-voice-route.sh install
+ExecStop=/usr/local/bin/discord-voice-route.sh remove
+RemainAfterExit=yes
+TimeoutStartSec=40
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

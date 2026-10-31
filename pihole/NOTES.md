@@ -1,41 +1,37 @@
-# Конфиг Pi-hole
+# Pi-hole домашнего шлюза
 
-Сам Pi-hole работает без изменений (Docker, `pihole/pihole:latest`,
-`--network host`) — ничего кастомного, кроме одной настройки.
+Сверено 31 октября 2026 года с работающим контейнером pihole.
 
-## Upstream DNS
+- Настроен image `pihole/pihole:latest`; версия запущенного образа — `2026.07.2`.
+- Network mode host; restart policy unless-stopped.
+- dns.upstreams: только `127.0.0.1#5353`.
+- dns.listeningMode: ALL.
+- webserver.port: `8080o,8443os,[::]:8080o,[::]:8443os`.
+- TZ контейнера: Europe/Moscow; сверка её не меняла.
 
-Upstream у Pi-hole указывает на локальный DNS-релей xray, а не напрямую на
-публичный резолвер:
+Upstream и web ports находятся в pihole.toml в подключённом `/etc/pihole`,
+а не обязательно в environment Compose. На чистой установке их задать явно.
 
-```
-pihole-FTL --config dns.upstreams '["127.0.0.1#5353"]'
-```
+`docker-compose.json` — допустимый для Docker Compose JSON-шаблон, собранный
+по параметрам live container. В нём нет API-пароля и содержимого базы Pi-hole.
 
-См. инбаунд `dns-in` в `xray/config.json` (порт 5353) — он пересылает
-каждый запрос через outbound `proxy` (туннель VLESS/REALITY), так что
-резолв DNS происходит как будто с внешнего сервера. Это фикс для подмены
-DNS на уровне провайдера (зафиксировано напрямую: прямой запрос к `8.8.8.8`
-на заблокированный домен вернул `NXDOMAIN` с выставленным флагом `aa` —
-публичный резолвер никогда так не отвечает для домена, которым не
-управляет, именно так и была поймана подмена).
-
-## Пример запуска в Docker
-
-```
-docker run -d --name pihole \
-  --network host \
-  -e TZ=<ваша таймзона> \
-  -e FTLCONF_dns_listeningMode=ALL \
-  -v pihole-etc:/etc/pihole \
-  --restart unless-stopped \
-  pihole/pihole:latest
+```sh
+cp .env.example .env
+# Указать свой PIHOLE_PASSWORD в .env.
+docker compose --env-file .env -f docker-compose.json config -q
+docker compose --env-file .env -f docker-compose.json up -d
+docker exec pihole pihole-FTL --config dns.upstreams '["127.0.0.1#5353"]'
+docker exec pihole pihole-FTL --config webserver.port '8080o,8443os,[::]:8080o,[::]:8443os'
 ```
 
-(`FTLCONF_webserver_api_password` задаётся отдельно — здесь не хранится.)
+Проверка без изменений:
 
-## Блоклисты
+```sh
+docker exec pihole pihole-FTL --config dns.upstreams
+docker exec pihole pihole-FTL --config webserver.port
+docker exec pihole pihole status
+```
 
-Помимо StevenBlack, подключены: hagezi `adblock/pro.txt` и RU AdList
-(`ElkyBoy/ruadlist-pihole`). Список hagezi `hosts/` и `domains/` устарел, использовать
-только `adblock/`. Перестроить: `docker exec pihole pihole -g`.
+При восстановлении существующей установки сначала вернуть её приватный
+каталог данных. `etc-pihole` и `etc-dnsmasq.d` игнорируются Git. Наборы блоклистов
+проверяются в самой Pi-hole; в этой сверке их база не экспортировалась.

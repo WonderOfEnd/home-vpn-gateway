@@ -1,7 +1,8 @@
 {
   "log": {
-    "loglevel": "info",
-    "access": "/var/log/xray/access.log"
+    "access": "none",
+    "error": "/var/log/xray/error.log",
+    "loglevel": "warning"
   },
   "inbounds": [
     {
@@ -38,6 +39,30 @@
           "quic"
         ],
         "routeOnly": false
+      }
+    },
+    {
+      "tag": "tproxy-udp-in",
+      "listen": "0.0.0.0",
+      "port": 12346,
+      "protocol": "dokodemo-door",
+      "settings": {
+        "network": "udp",
+        "followRedirect": true
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "routeOnly": false
+      },
+      "streamSettings": {
+        "sockopt": {
+          "tproxy": "tproxy"
+        }
       }
     },
     {
@@ -86,6 +111,35 @@
         "concurrency": 256,
         "xudpConcurrency": 128,
         "xudpProxyUDP443": "allow"
+      }
+    },
+    {
+      "tag": "proxy-voice",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "<VPS_IP>",
+            "port": 443,
+            "users": [
+              {
+                "id": "<CLIENT_UUID>",
+                "encryption": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "serverName": "<REALITY_SERVER_NAME>",
+          "fingerprint": "chrome",
+          "publicKey": "<REALITY_PUBLIC_KEY>",
+          "shortId": "<REALITY_SHORT_ID>",
+          "spiderX": "/"
+        }
       }
     },
     {
@@ -138,7 +192,8 @@
         "type": "field",
         "inboundTag": [
           "redirect-in",
-          "socks-in"
+          "socks-in",
+          "tproxy-udp-in"
         ],
         "outboundTag": "proxy"
       }

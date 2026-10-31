@@ -1,0 +1,6 @@
+[Unit]
+Description=pcstate: снимок списка приложений и ВМ
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/pcstate snapshot
