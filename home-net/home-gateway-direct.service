@@ -1,0 +1,17 @@
+[Unit]
+Description=Emergency direct Internet and DNS for the home LAN
+Wants=network-online.target
+After=network-online.target netfilter-persistent.service docker.service xray-tproxy-rules.service discord-voice-route.service
+PartOf=netfilter-persistent.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/default/home-gateway-direct
+ExecStart=/usr/local/libexec/home-gateway-direct.py on
+ExecStop=/usr/local/libexec/home-gateway-direct.py off
+RemainAfterExit=yes
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

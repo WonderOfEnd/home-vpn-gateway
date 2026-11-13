@@ -1,0 +1,3 @@
+# Optional: replace <USER> with the gateway administrator account.
+# Install through visudo; the installer does not change sudo permissions.
+<USER> ALL=(root) NOPASSWD: /usr/bin/systemctl restart xray.service, /usr/bin/systemctl enable --now home-gateway-direct.service, /usr/bin/systemctl disable --now home-gateway-direct.service

@@ -1,0 +1,133 @@
+#!/usr/bin/python3
+"""Check the gateway, recover Xray, or select explicit emergency direct mode."""
+from concurrent.futures import ThreadPoolExecutor
+import secrets
+import socket
+import struct
+import subprocess
+import sys
+import time
+
+UNIT = 'home-gateway-direct.service'
+
+
+def command(args, timeout=30):
+    return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+
+
+def direct_mode():
+    return command(['systemctl', 'is-active', '--quiet', UNIT]).returncode == 0
+
+
+def systemctl(*args):
+    result = command(['sudo', '-n', '/usr/bin/systemctl', *args], timeout=45)
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip() or 'systemctl failed')
+
+
+def proxy_test(url):
+    try:
+        return command(['curl', '--silent', '--show-error', '--fail',
+                        '--connect-timeout', '3', '--max-time', '5',
+                        '--noproxy', '', '--socks5-hostname', '127.0.0.1:10808',
+                        '--output', '/dev/null', url], timeout=7).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def dns_test():
+    try:
+        query_id = secrets.randbits(16)
+        packet = struct.pack('!6H', query_id, 0x0100, 1, 0, 0, 0)
+        packet += b'\x07example\x03com\x00' + struct.pack('!HH', 1, 1)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.settimeout(2)
+            sock.sendto(packet, ('127.0.0.1', 53))
+            data, _ = sock.recvfrom(4096)
+        ident, flags, _, answers, _, _ = struct.unpack('!6H', data[:12])
+        return ident == query_id and bool(flags & 0x8000) and flags & 15 == 0 and answers > 0
+    except (OSError, struct.error):
+        return False
+
+
+def health():
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        a = pool.submit(proxy_test, 'https://example.com')
+        b = pool.submit(proxy_test, 'https://api.ipify.org')
+        dns = pool.submit(dns_test)
+        return {'vpn': a.result() or b.result(), 'dns': dns.result()}
+
+
+def report(state):
+    print('Режим: ' + ('прямой интернет' if direct_mode() else 'VPN-шлюз'))
+    print('Туннель VPN: ' + ('работает' if state['vpn'] else 'не отвечает'))
+    print('DNS: ' + ('отвечает' if state['dns'] else 'не отвечает'))
+
+
+def enable_direct():
+    systemctl('enable', '--now', UNIT)
+    print('Включён прямой интернет: VPN шлюза и фильтрация Pi-hole временно обойдены.')
+    print('Для заблокированных сайтов используй запасной VPN на устройстве.')
+    print('Вернуть обычный режим: home-net vpn')
+    return 0 if dns_test() else 2
+
+
+def restore_vpn():
+    systemctl('disable', '--now', UNIT)
+    if not dns_test():
+        print('DNS обычного режима не ответил. Возвращаю прямой интернет.')
+        return enable_direct()
+    print('VPN-шлюз и Pi-hole включены.')
+    return 0
+
+
+def recover(require_vpn=False):
+    state = health()
+    if state['vpn'] and (state['dns'] or direct_mode()):
+        if direct_mode():
+            return restore_vpn()
+        print('VPN и DNS работают; перезапуск не требуется.')
+        return 0
+    print('Проверяю восстановление соединений Xray...')
+    systemctl('restart', 'xray.service')
+    for _ in range(40):
+        try:
+            with socket.create_connection(('127.0.0.1', 10808), timeout=0.2):
+                break
+        except OSError:
+            time.sleep(0.1)
+    state = health()
+    if state['vpn']:
+        if direct_mode():
+            return restore_vpn()
+        if state['dns']:
+            print('Соединения VPN и DNS восстановлены.')
+            return 0
+    if require_vpn:
+        print('VPN пока не восстановился. Текущий режим сохранён.')
+        return 2
+    print('Туннель/DNS пока недоступен; переключаю на прямой интернет.')
+    return enable_direct()
+
+
+def main():
+    action = sys.argv[1] if len(sys.argv) == 2 else 'status'
+    if len(sys.argv) > 2 or action not in ('status', 'fix', 'direct', 'vpn'):
+        print('Использование: home-net status|fix|direct|vpn')
+        return 2
+    if action == 'status':
+        state = health()
+        report(state)
+        return 0 if state['dns'] and (direct_mode() or state['vpn']) else 2
+    if action == 'direct':
+        return enable_direct()
+    result = recover(require_vpn=action == 'vpn')
+    return 2 if action == 'vpn' and direct_mode() else result
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+        print('Ошибка восстановления: ' + str(error), file=sys.stderr)
+        sys.exit(1)

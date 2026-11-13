@@ -1,0 +1,11 @@
+[Unit]
+Description=Check home gateway connectivity every 20 seconds
+
+[Timer]
+OnBootSec=45s
+OnUnitInactiveSec=20s
+AccuracySec=1s
+Unit=home-net-watchdog.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=Check the home gateway and recover Internet on repeated failures
+After=network-online.target docker.service xray.service
+ConditionPathExists=/usr/local/bin/home-net
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/libexec/home-net-watchdog.py
+TimeoutStartSec=45
