@@ -1,0 +1,11 @@
+[Unit]
+Description=Observe gateway mode and retry personal notifications every 15 seconds
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=15s
+AccuracySec=1s
+Unit=home-net-notify.service
+
+[Install]
+WantedBy=timers.target

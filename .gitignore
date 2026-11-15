@@ -11,3 +11,4 @@
 __pycache__/
 **/etc-pihole/
 **/etc-dnsmasq.d/
+ntfy.json
