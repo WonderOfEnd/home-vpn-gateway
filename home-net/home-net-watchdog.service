@@ -1,5 +1,5 @@
 [Unit]
-Description=Check the home gateway and recover Internet on repeated failures
+Description=Switch home gateway modes after four consecutive connectivity checks
 After=network-online.target docker.service xray.service
 ConditionPathExists=/usr/local/bin/home-net
 

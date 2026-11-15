@@ -1,9 +1,9 @@
 [Unit]
-Description=Check home gateway connectivity every 20 seconds
+Description=Check home gateway connectivity every 30 seconds
 
 [Timer]
-OnBootSec=45s
-OnUnitInactiveSec=20s
+OnBootSec=30s
+OnUnitActiveSec=30s
 AccuracySec=1s
 Unit=home-net-watchdog.service
 
