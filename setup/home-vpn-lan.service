@@ -1,0 +1,14 @@
+[Unit]
+Description=IPv4 routing for the home VPN gateway
+Wants=network-online.target xray.service docker.service
+After=network-online.target docker.service xray.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/python3 /opt/home-vpn-gateway/routes.py up
+ExecStop=/usr/bin/python3 /opt/home-vpn-gateway/routes.py down
+
+[Install]
+WantedBy=multi-user.target
